@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Smart Pantry</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#10b981">
+  <!-- Tailwind CSS & FontAwesome CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 pb-20 select-none">
+
+  <!-- 헤더 -->
+  <header class="sticky top-0 z-40 bg-emerald-600 text-white p-4 shadow-md flex justify-between items-center">
+    <h1 class="text-xl font-bold flex items-center gap-2">
+      <i class="fa-solid fa-kitchen-set"></i> Smart Pantry
+    </h1>
+    <div class="flex items-center gap-2">
+      <!-- PWA 설치 버튼 (기본적으로 숨김, 설치 가능 상태 시 동적 노출) -->
+      <button id="install-btn" onclick="installPWA()" class="hidden bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 shadow transition animate-pulse">
+        <i class="fa-solid fa-download"></i> 앱 설치
+      </button>
+      <button onclick="openHelpModal()" class="bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition">
+        <i class="fa-solid fa-circle-question"></i> 도움말
+      </button>
+    </div>
+  </header>
+
+  <!-- 설치 안내 배너 (모바일 브라우저 접속 시 상단에 표시) -->
+  <div id="install-banner" class="hidden bg-emerald-100 border-b border-emerald-200 px-4 py-2.5 flex justify-between items-center text-xs text-emerald-800">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-mobile-screen-button text-base text-emerald-600"></i>
+      <span>앱으로 설치하면 홈 화면에서 바로 이용할 수 있습니다.</span>
+    </div>
+    <button onclick="installPWA()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded shadow text-xs whitespace-nowrap">
+      설치하기
+    </button>
+  </div>
+
+  <!-- 메인 컨텐츠 영역 -->
+  <main class="p-4 max-w-md mx-auto">
+    
+    <!-- 1. 냉장고 재고 탭 -->
+    <section id="tab-inventory" class="tab-content active">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="text-lg font-bold">냉장고 재고 목록</h2>
+          <p class="text-xs text-gray-500">임박 항목 <span id="stat-urgent" class="font-bold text-red-500">0</span>개</p>
+        </div>
+        <button onclick="openModal('inventory')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold shadow">
+          + 품목 추가
+        </button>
+      </div>
+
+      <div id="inventory-list" class="space-y-3">
+        <!-- JS 동적 렌더링 -->
+      </div>
+    </section>
+
+    <!-- 2. 장보기 체크리스트 탭 -->
+    <section id="tab-shopping" class="tab-content">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="text-lg font-bold">장보기 체크리스트</h2>
+          <p class="text-xs text-gray-500">구매 필요 <span id="stat-shopping" class="font-bold text-emerald-600">0</span>개</p>
+        </div>
+        <button onclick="openModal('shopping')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold shadow">
+          + 항목 추가
+        </button>
+      </div>
+
+      <div id="shopping-list" class="space-y-3">
+        <!-- JS 동적 렌더링 -->
+      </div>
+    </section>
+  </main>
+
+  <!-- 바텀 네비게이션 -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around py-2.5 z-40">
+    <button onclick="switchTab('inventory')" id="nav-inventory" class="flex flex-col items-center text-emerald-600">
+      <i class="fa-solid fa-boxes-packing text-xl"></i>
+      <span class="text-xs mt-1 font-medium">재고 관리</span>
+    </button>
+    <button onclick="switchTab('shopping')" id="nav-shopping" class="flex flex-col items-center text-gray-400">
+      <i class="fa-solid fa-cart-shopping text-xl"></i>
+      <span class="text-xs mt-1 font-medium">장보기 리스트</span>
+    </button>
+  </nav>
+
+  <!-- 아이템 입력 모달 -->
+  <div id="item-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-xl">
+      <h3 id="modal-title" class="text-lg font-bold mb-4">아이템 추가</h3>
+      <input type="hidden" id="modal-type">
+      
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">품목명</label>
+          <input type="text" id="input-name" placeholder="예: 우유, 사과" class="w-full border rounded-lg p-2 text-sm focus:outline-emerald-500">
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">카테고리</label>
+          <select id="input-category" class="w-full border rounded-lg p-2 text-sm focus:outline-emerald-500">
+            <option value="신선">신선식품</option>
+            <option value="냉동">냉동식품</option>
+            <option value="조미료">조미료/소스</option>
+            <option value="가공">가공식품</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 block mb-1">수량</label>
+          <input type="number" id="input-qty" value="1" min="1" class="w-full border rounded-lg p-2 text-sm focus:outline-emerald-500">
+        </div>
+        <div id="expiry-field">
+          <label class="text-xs text-gray-500 block mb-1">유통기한</label>
+          <input type="date" id="input-expiry" class="w-full border rounded-lg p-2 text-sm focus:outline-emerald-500">
+        </div>
+      </div>
+
+      <div class="flex gap-2 mt-6">
+        <button onclick="closeModal()" class="flex-1 bg-gray-200 hover:bg-gray-300 py-2 rounded-lg text-sm text-gray-700">취소</button>
+        <button onclick="saveModalData()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 py-2 rounded-lg text-sm text-white font-semibold">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사용 설명서 (도움말) 모달 -->
+  <div id="help-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold flex items-center gap-2">
+          <i class="fa-solid fa-book-open text-emerald-600"></i> 앱 매뉴얼 & 사용 설명서
+        </h3>
+        <button onclick="closeHelpModal()" class="text-gray-400 hover:text-gray-600">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+      </div>
+      
+      <div class="space-y-5 text-xs text-gray-600 leading-relaxed">
+        <div>
+          <h4 class="font-bold text-emerald-700 text-sm mb-1">📌 1. 프로그램 소개</h4>
+          <p class="mb-1"><strong>Smart Pantry</strong>는 식재료의 유통기한 관리와 스마트 장보기 체크리스트를 한곳에서 관리하는 PWA 기반 웹 앱입니다.</p>
+          <p><strong>추천 대상:</strong> 유통기한이 지나 음식을 자주 버리는 분, 장볼 때 중복 구매를 방지하고 싶은 1인 가구 및 주부.</p>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-emerald-700 text-sm mb-1">📱 2. 접속 및 앱(PWA) 설치 방법</h4>
+          <ul class="list-disc list-inside space-y-1">
+            <li><strong>앱 설치 버튼:</strong> 상단 헤더의 황색 <span class="font-bold text-emerald-800">[앱 설치]</span> 버튼을 누르면 스마트폰 및 PC에 앱으로 즉시 설치됩니다.</li>
+            <li><strong>Android (Chrome):</strong> 상단 설치 버튼을 누르거나 메뉴(⋮) ➔ <span class="font-semibold text-gray-800">'홈 화면에 추가'</span> 선택</li>
+            <li><strong>iOS (Safari):</strong> Safari 하단 공유 버튼 클릭 ➔ <span class="font-semibold text-gray-800">'홈 화면에 추가'</span> 선택</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-emerald-700 text-sm mb-1">🖥️ 3. 화면 및 버튼 안내</h4>
+          <ul class="list-disc list-inside space-y-1">
+            <li><strong>상단 헤더:</strong> 타이틀, <strong>[앱 설치]</strong> 버튼 및 <strong>[도움말]</strong> 버튼이 위치합니다.</li>
+            <li><strong>하단 네비게이션:</strong> <span class="text-gray-800 font-medium">재고 관리</span> 탭과 <span class="text-gray-800 font-medium">장보기 리스트</span> 탭을 전환합니다.</li>
+            <li><strong>[+ 품목/항목 추가] 버튼:</strong> 새로운 재고 또는 장볼 식재료 등록 모달창을 엽니다.</li>
+            <li><strong>입력칸:</strong> 품목명, 카테고리, 수량, 유통기한(재고 전용) 입력 필드.</li>
+            <li><strong>D-Day 배지:</strong> 유통기한 잔여일을 자동 계산해 표시 (녹색: 안전, 빨간색: 3일 이하 임박/만료).</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-emerald-700 text-sm mb-1">⚙️ 4. 기능별 단계별 사용 방법</h4>
+          <div class="space-y-2 mt-2">
+            <div class="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+              <p class="font-bold text-gray-800 mb-0.5">기능 1: 냉장고 재고 등록 & 유통기한 관리</p>
+              <ol class="list-decimal list-inside space-y-0.5">
+                <li>하단 '재고 관리' 탭 선택 후 <strong>[+ 품목 추가]</strong> 클릭</li>
+                <li>품목명, 카테고리, 수량, 유통기한을 입력하고 <strong>[저장]</strong> 클릭</li>
+                <li>목록에서 D-Day 배지로 유통기한 임박(D-3 이하) 품목을 파악합니다.</li>
+              </ol>
+            </div>
+
+            <div class="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+              <p class="font-bold text-gray-800 mb-0.5">기능 2: 장보기 체크리스트 작성</p>
+              <ol class="list-decimal list-inside space-y-0.5">
+                <li>하단 '장보기 리스트' 탭 선택 후 <strong>[+ 항목 추가]</strong> 클릭</li>
+                <li>구매할 품목명, 카테고리, 필요 수량 입력 후 <strong>[저장]</strong> 클릭</li>
+                <li>마트에서 장볼 때 구매한 품목의 좌측 체크박스를 선택합니다.</li>
+              </ol>
+            </div>
+
+            <div class="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+              <p class="font-bold text-gray-800 mb-0.5">기능 3: 장보기 완료 후 재고로 자동 이관</p>
+              <ol class="list-decimal list-inside space-y-0.5">
+                <li>장보기 리스트에서 항목 체크시 활성화되는 <strong>[구매 완료]</strong> 버튼 클릭</li>
+                <li>해당 항목이 장보기 리스트에서 삭제되고 '재고 관리' 탭으로 즉시 이동합니다.</li>
+                <li>재고 관리 탭에서 유통기한을 추가로 편집해 보관할 수 있습니다.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-emerald-700 text-sm mb-1">⚠️ 5. 주의사항 & 자주 묻는 질문 (FAQ)</h4>
+          <div class="space-y-2">
+            <div>
+              <p class="font-bold text-gray-800">Q. 인터넷이 안 되어도 사용할 수 있나요?</p>
+              <p class="text-gray-500">네, PWA 기술이 적용되어 오프라인 환경에서도 완벽하게 동작합니다.</p>
+            </div>
+            <div>
+              <p class="font-bold text-gray-800">Q. 저장한 데이터가 사라질 위험이 있나요?</p>
+              <p class="text-gray-500">데이터는 기기의 웹 브라우저(LocalStorage)에 안전하게 저장됩니다. 단, 브라우저 방문 기록 및 쿠키/캐시 삭제 시 초기화될 수 있습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="closeHelpModal()" class="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 py-2.5 rounded-lg text-sm text-white font-semibold shadow">
+        확인했습니다
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // PWA 설치 프롬프트 이벤트를 저장할 변수
+    let deferredPrompt = null;
+
+    // PWA 설치 이벤트 감지
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      
+      // 설치 버튼 및 배너 활성화
+      document.getElementById('install-btn').classList.remove('hidden');
+      document.getElementById('install-banner').classList.remove('hidden');
+    });
+
+    // PWA 설치 실행 함수
+    async function installPWA() {
+      if (!deferredPrompt) return;
+      
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        console.log('사용자가 PWA 앱 설치를 승인했습니다.');
+      }
+      
+      deferredPrompt = null;
+      document.getElementById('install-btn').classList.add('hidden');
+      document.getElementById('install-banner').classList.add('hidden');
+    }
+
+    // 앱 설치 완료 감지
+    window.addEventListener('appinstalled', () => {
+      deferredPrompt = null;
+      document.getElementById('install-btn').classList.add('hidden');
+      document.getElementById('install-banner').classList.add('hidden');
+      console.log('PWA 설치가 완료되었습니다.');
+    });
+
+    // 상태 관리 (LocalStorage 연동)
+    let inventory = JSON.parse(localStorage.getItem('pantry_inventory')) || [];
+    let shoppingList = JSON.parse(localStorage.getItem('pantry_shopping')) || [];
+
+    // 서비스 워커 등록
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js')
+        .then(() => console.log('SW Registered'))
+        .catch(err => console.error('SW Fail:', err));
+    }
+
+    // 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+      renderInventory();
+      renderShoppingList();
+      updateStats();
+    });
+
+    // 탭 전환
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+      
+      ['inventory', 'shopping'].forEach(t => {
+        const btn = document.getElementById(`nav-${t}`);
+        if (t === tabName) {
+          btn.className = "flex flex-col items-center text-emerald-600";
+        } else {
+          btn.className = "flex flex-col items-center text-gray-400";
+        }
+      });
+    }
+
+    // D-Day 계산
+    function getDDay(dateStr) {
+      if (!dateStr) return { text: '-', isUrgent: false };
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const target = new Date(dateStr);
+      target.setHours(0, 0, 0, 0);
+      
+      const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 0) return { text: `D+${Math.abs(diffDays)} (만료)`, isUrgent: true };
+      if (diffDays === 0) return { text: 'D-Day', isUrgent: true };
+      return { text: `D-${diffDays}`, isUrgent: diffDays <= 3 };
+    }
+
+    // 렌더링 - 냉장고 재고
+    function renderInventory() {
+      const listEl = document.getElementById('inventory-list');
+      listEl.innerHTML = '';
+
+      if (inventory.length === 0) {
+        listEl.innerHTML = `<p class="text-center text-gray-400 py-8 text-sm">등록된 재고가 없습니다.</p>`;
+        return;
+      }
+
+      inventory.forEach((item, idx) => {
+        const dday = getDDay(item.expiry);
+        const badgeClass = dday.isUrgent 
+          ? 'bg-red-100 text-red-600 border-red-200' 
+          : 'bg-emerald-100 text-emerald-700 border-emerald-200';
+
+        const card = document.createElement('div');
+        card.className = "bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center";
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-gray-800">${item.name}</span>
+              <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">${item.category}</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">수량: ${item.qty}개 | 유통기한: ${item.expiry || '미지정'}</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="px-2.5 py-1 rounded-full text-xs font-semibold border ${badgeClass}">${dday.text}</span>
+            <button onclick="deleteItem('inventory', ${idx})" class="text-gray-300 hover:text-red-500 p-1">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+    }
+
+    // 렌더링 - 장보기 리스트
+    function renderShoppingList() {
+      const listEl = document.getElementById('shopping-list');
+      listEl.innerHTML = '';
+
+      if (shoppingList.length === 0) {
+        listEl.innerHTML = `<p class="text-center text-gray-400 py-8 text-sm">장보기 리스트가 비어 있습니다.</p>`;
+        return;
+      }
+
+      shoppingList.forEach((item, idx) => {
+        const card = document.createElement('div');
+        card.className = `bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center ${item.completed ? 'bg-gray-50' : ''}`;
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleShopping(${idx})" class="w-5 h-5 accent-emerald-600 rounded cursor-pointer">
+            <div>
+              <span class="font-bold ${item.completed ? 'line-through text-gray-400' : 'text-gray-800'}">${item.name}</span>
+              <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded ml-2">${item.category}</span>
+              <p class="text-xs text-gray-400 mt-0.5">수량: ${item.qty}개</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            ${item.completed ? `
+              <button onclick="moveToInventory(${idx})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded-lg shadow font-medium">
+                구매 완료
+              </button>
+            ` : ''}
+            <button onclick="deleteItem('shopping', ${idx})" class="text-gray-300 hover:text-red-500 p-1">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+    }
+
+    // 통계 카운트 업데이트
+    function updateStats() {
+      const urgentCount = inventory.filter(i => getDDay(i.expiry).isUrgent).length;
+      document.getElementById('stat-urgent').innerText = urgentCount;
+      document.getElementById('stat-shopping').innerText = shoppingList.length;
+    }
+
+    // 입력 모달 제어
+    function openModal(type) {
+      document.getElementById('modal-type').value = type;
+      document.getElementById('modal-title').innerText = type === 'inventory' ? '재고 항목 추가' : '장볼 항목 추가';
+      document.getElementById('expiry-field').style.display = type === 'inventory' ? 'block' : 'none';
+      document.getElementById('input-name').value = '';
+      document.getElementById('input-qty').value = '1';
+      document.getElementById('input-expiry').value = '';
+      document.getElementById('item-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('item-modal').classList.add('hidden');
+    }
+
+    function saveModalData() {
+      const type = document.getElementById('modal-type').value;
+      const name = document.getElementById('input-name').value.trim();
+      const category = document.getElementById('input-category').value;
+      const qty = document.getElementById('input-qty').value;
+      const expiry = document.getElementById('input-expiry').value;
+
+      if (!name) return alert('품목명을 입력하세요.');
+
+      const item = { name, category, qty, expiry };
+
+      if (type === 'inventory') {
+        inventory.push(item);
+        saveLocal('inventory');
+        renderInventory();
+      } else {
+        shoppingList.push({ ...item, completed: false });
+        saveLocal('shopping');
+        renderShoppingList();
+      }
+
+      updateStats();
+      closeModal();
+    }
+
+    // 도움말 모달 제어
+    function openHelpModal() {
+      document.getElementById('help-modal').classList.remove('hidden');
+    }
+
+    function closeHelpModal() {
+      document.getElementById('help-modal').classList.add('hidden');
+    }
+
+    // 삭제 기능
+    function deleteItem(type, index) {
+      if (type === 'inventory') {
+        inventory.splice(index, 1);
+        saveLocal('inventory');
+        renderInventory();
+      } else {
+        shoppingList.splice(index, 1);
+        saveLocal('shopping');
+        renderShoppingList();
+      }
+      updateStats();
+    }
+
+    // 체크리스트 토글
+    function toggleShopping(index) {
+      shoppingList[index].completed = !shoppingList[index].completed;
+      saveLocal('shopping');
+      renderShoppingList();
+    }
+
+    // 구매 완료 -> 재고 이동
+    function moveToInventory(index) {
+      const item = shoppingList.splice(index, 1)[0];
+      delete item.completed;
+      inventory.push(item);
+
+      saveLocal('inventory');
+      saveLocal('shopping');
+      renderInventory();
+      renderShoppingList();
+      updateStats();
+    }
+
+    // 로컬 스토리지 저장
+    function saveLocal(type) {
+      if (type === 'inventory') localStorage.setItem('pantry_inventory', JSON.stringify(inventory));
+      if (type === 'shopping') localStorage.setItem('pantry_shopping', JSON.stringify(shoppingList));
+    }
+  </script>
+</body>
+</html>

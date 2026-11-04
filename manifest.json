@@ -1,0 +1,21 @@
+{
+  "name": "Smart Pantry - 장보기 & 냉장고 관리",
+  "short_name": "SmartPantry",
+  "description": "스마트 냉장고 재고 및 장보기 체크리스트 PWA 웹 앱",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3724/3724788.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3724/3724788.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
